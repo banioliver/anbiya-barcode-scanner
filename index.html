@@ -153,7 +153,7 @@ button {
 <h2>📷 ANBIYA BARCODE SCANNER</h2>
 
 <div class="sub">
-Live scan • otomatis • tanpa tombol foto
+Live scan • kamera belakang • otomatis • tanpa foto
 </div>
 
 <div class="scanner">
@@ -172,7 +172,7 @@ playsinline>
 </div>
 
 <div id="status" class="status">
-Tekan MULAI SCAN untuk mengaktifkan kamera.
+Kamera akan aktif otomatis. Jika belum, tekan MULAI SCAN.
 </div>
 
 <div class="result">
@@ -211,379 +211,178 @@ import {
   BrowserMultiFormatReader
 } from "https://esm.sh/@zxing/browser@0.2.1";
 
+const POS_ORIGIN = "*";
 
-const video =
-  document.getElementById("video");
-
-const statusEl =
-  document.getElementById("status");
-
-const codeEl =
-  document.getElementById("code");
-
+const video = document.getElementById("video");
+const statusEl = document.getElementById("status");
+const codeEl = document.getElementById("code");
+const startButton = document.getElementById("start");
+const stopButton = document.getElementById("stop");
 
 let reader = null;
-
 let controls = null;
-
 let busy = false;
-
+let lastCode = "";
+let lastCodeTime = 0;
 
 function status(text) {
-
   statusEl.textContent = text;
-
 }
 
-
-/* =========================
-   KIRIM BARCODE KE POS
-========================= */
-
 function sendToPOS(code) {
-
-  /* window opener */
+  const cleanCode = String(code || "").trim();
+  if (!cleanCode) return false;
 
   try {
-
-    if (
-      window.opener &&
-      !window.opener.closed
-    ) {
-
+    if (window.opener && !window.opener.closed) {
       window.opener.postMessage(
         {
           type: "ANBIYA_BARCODE",
-          barcode: code
+          barcode: cleanCode
         },
-        "*"
+        POS_ORIGIN
       );
-
+      return true;
     }
-
   } catch (e) {
-
-    console.log(e);
-
+    console.error("Gagal mengirim barcode ke POS:", e);
   }
 
-
-  /* localStorage */
-
-  try {
-
-    localStorage.setItem(
-      "ANBIYA_LAST_BARCODE",
-      code
-    );
-
-    localStorage.setItem(
-      "ANBIYA_LAST_BARCODE_TIME",
-      Date.now().toString()
-    );
-
-  } catch (e) {
-
-    console.log(e);
-
-  }
-
-
-  /* BroadcastChannel */
-
-  try {
-
-    if (
-      "BroadcastChannel" in window
-    ) {
-
-      const channel =
-        new BroadcastChannel(
-          "ANBIYA_BARCODE_CHANNEL"
-        );
-
-      channel.postMessage({
-        type: "ANBIYA_BARCODE",
-        barcode: code
-      });
-
-      channel.close();
-
-    }
-
-  } catch (e) {
-
-    console.log(e);
-
-  }
-
+  return false;
 }
-
-
-/* =========================
-   START SCANNER
-========================= */
 
 async function startScanner() {
-
-  if (busy) {
-
-    return;
-
-  }
+  if (busy) return;
 
   busy = true;
-
+  lastCode = "";
+  lastCodeTime = 0;
   codeEl.textContent = "—";
-
-  status(
-    "Meminta izin kamera..."
-  );
-
+  status("📷 Meminta izin kamera...");
 
   try {
-
-    if (
-      !navigator.mediaDevices ||
-      !navigator.mediaDevices.getUserMedia
-    ) {
-
-      throw new Error(
-        "Browser tidak mendukung kamera."
-      );
-
+    if (!window.isSecureContext) {
+      throw new Error("Scanner harus dibuka melalui HTTPS / GitHub Pages.");
     }
 
-
-    /* Buat scanner */
-
-    reader =
-      new BrowserMultiFormatReader();
-
-
-    status(
-      "Mencari kamera belakang..."
-    );
-
-
-    /* Cari kamera */
-
-    const devices =
-      await BrowserMultiFormatReader
-        .listVideoInputDevices();
-
-
-    if (
-      !devices ||
-      devices.length === 0
-    ) {
-
-      throw new Error(
-        "Kamera HP tidak ditemukan."
-      );
-
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("Browser tidak menyediakan akses kamera.");
     }
 
+    reader = new BrowserMultiFormatReader();
+    status("🔎 Mencari kamera belakang...");
 
-    console.log(
-      "Daftar kamera:",
-      devices
-    );
+    const devices = await BrowserMultiFormatReader.listVideoInputDevices();
 
-
-    /* Pilih kamera belakang */
-
-    let selectedDevice =
-      devices[devices.length - 1];
-
-
-    const backCamera =
-      devices.find(
-        device =>
-          /back|rear|environment|belakang/i
-            .test(device.label)
-      );
-
-
-    if (backCamera) {
-
-      selectedDevice =
-        backCamera;
-
+    if (!devices || devices.length === 0) {
+      throw new Error("Kamera HP tidak ditemukan.");
     }
 
+    console.log("Daftar kamera:", devices);
 
-    status(
-      "Kamera aktif — arahkan barcode ke kotak hijau."
+    let selectedDevice = devices.find(device =>
+      /back|rear|environment|belakang|main|utama/i.test(device.label || "")
     );
 
+    if (!selectedDevice) {
+      selectedDevice = devices[devices.length - 1];
+    }
 
-    /* Mulai scan */
+    status("📷 Kamera aktif — arahkan barcode ke kotak hijau.");
 
-    controls =
-      await reader.decodeFromVideoDevice(
-        selectedDevice.deviceId,
-        video,
-        (result, error) => {
+    controls = await reader.decodeFromVideoDevice(
+      selectedDevice.deviceId,
+      video,
+      (result, error) => {
+        if (!result || !busy) return;
 
-          if (!result) {
+        const code = String(result.getText() || "").trim();
+        if (!code) return;
 
-            return;
+        const now = Date.now();
+        if (code === lastCode && now - lastCodeTime < 1000) return;
 
-          }
+        lastCode = code;
+        lastCodeTime = now;
 
+        console.log("BARCODE:", code);
+        codeEl.textContent = code;
+        status("✅ Barcode terbaca — mengirim ke POS...");
 
-          const code =
-            result.getText();
+        const sent = sendToPOS(code);
 
-
-          if (!code) {
-
-            return;
-
-          }
-
-
-          console.log(
-            "BARCODE:",
-            code
-          );
-
-
-          codeEl.textContent =
-            code;
-
-
-          status(
-            "✅ Barcode berhasil terbaca!"
-          );
-
-
-          sendToPOS(code);
-
-
-          /* Stop setelah berhasil */
-
-          setTimeout(() => {
-
-            stopScanner();
-
-          }, 500);
-
-
+        if (navigator.vibrate) {
+          try { navigator.vibrate(80); } catch (e) {}
         }
-      );
 
+        if (!sent) {
+          status("⚠️ POS tidak ditemukan. Buka scanner dari tombol SCAN di POS.");
+          busy = false;
+          return;
+        }
+
+        setTimeout(() => {
+          stopScanner();
+          try { window.close(); } catch (e) {}
+        }, 180);
+      }
+    );
+
+    try { await video.play(); } catch (e) {}
 
   } catch (error) {
+    console.error("SCANNER ERROR:", error);
 
-    console.error(
-      "SCANNER ERROR:",
-      error
-    );
+    const message = error && error.message ? error.message : String(error);
 
-
-    status(
-      "❌ Kamera gagal dibuka: " +
-      (
-        error.message ||
-        error
-      )
-    );
-
-
-    busy = false;
-
-  }
-
-}
-
-
-/* =========================
-   STOP
-========================= */
-
-function stopScanner() {
-
-  try {
-
-    if (controls) {
-
-      controls.stop();
-
+    if (/permission|notallowed|izin|denied/i.test(message)) {
+      status("❌ Izin kamera ditolak. Izinkan kamera Chrome lalu tekan SCAN lagi.");
+    } else if (/secure|https/i.test(message)) {
+      status("❌ Scanner harus dibuka dari HTTPS / GitHub Pages.");
+    } else {
+      status("❌ Kamera gagal dibuka: " + message);
     }
 
-  } catch (e) {}
+    busy = false;
+  }
+}
 
+function stopScanner() {
+  try {
+    if (controls) controls.stop();
+  } catch (e) {}
 
   controls = null;
 
-
   try {
-
-    if (reader) {
-
-      reader.reset();
-
-    }
-
+    if (reader) reader.reset();
   } catch (e) {}
 
-
   try {
-
     if (video.srcObject) {
-
-      video.srcObject
-        .getTracks()
-        .forEach(
-          track => track.stop()
-        );
-
+      video.srcObject.getTracks().forEach(track => track.stop());
       video.srcObject = null;
-
     }
-
   } catch (e) {}
-
 
   busy = false;
-
 }
 
+startButton.addEventListener("click", startScanner);
 
-/* =========================
-   BUTTON
-========================= */
+stopButton.addEventListener("click", () => {
+  stopScanner();
+  status("Scanner dihentikan.");
+});
 
-document
-  .getElementById("start")
-  .addEventListener(
-    "click",
-    startScanner
-  );
+// Kamera otomatis aktif saat scanner dibuka dari tombol SCAN POS.
+window.addEventListener("load", () => {
+  setTimeout(() => {
+    startScanner();
+  }, 250);
+});
 
-
-document
-  .getElementById("stop")
-  .addEventListener(
-    "click",
-    () => {
-
-      stopScanner();
-
-      status(
-        "Scanner dihentikan."
-      );
-
-    }
-  );
-
-
-window.addEventListener(
-  "pagehide",
-  stopScanner
-);
+window.addEventListener("pagehide", stopScanner);
 
 </script>
 
