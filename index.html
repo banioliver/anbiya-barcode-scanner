@@ -108,9 +108,23 @@
 <script>
 let codeReader = null;
 let controls = null;
+
+/*
+ * MODE SCAN KASIR:
+ * - 1 barcode = 1 bunyi / 1 kali kirim.
+ * - Barcode yang masih tertahan di depan kamera tidak akan di-scan ulang.
+ * - Setelah scan, ada jeda singkat agar kasir bisa menggeser barang berikutnya.
+ * - Barang berbeda tetap bisa discan cepat setelah jeda.
+ */
 let lastCode = '';
 let lastTime = 0;
 let busy = false;
+let waitingForRelease = false;
+let releaseTimer = null;
+
+const SCAN_COOLDOWN_MS = 900;       // jeda antar scan
+const SAME_BARCODE_BLOCK_MS = 4000; // barcode sama diblokir selama masih tertahan
+const RELEASE_MS = 300;             // harus tidak terbaca sebentar sebelum siap ulang
 
 const POS_ORIGIN = 'https://banioliver.github.io';
 
@@ -155,8 +169,11 @@ function sendBarcode(value){
 window.addEventListener('message', function(event){
   if(event.origin !== POS_ORIGIN) return;
   if(!event.data || event.data.type !== 'ANBIYA_BARCODE_RECEIVED') return;
-  busy = false;
-  setStatus('🔎 SIAP — scan produk berikutnya');
+
+  setTimeout(()=>{
+    busy = false;
+    setStatus('🔎 Arahkan barcode barang berikutnya');
+  }, SCAN_COOLDOWN_MS);
 });
 
 async function startScanner(){
@@ -188,32 +205,70 @@ async function startScanner(){
       },
       document.getElementById('video'),
       (result, err) => {
-        if(!result || busy) return;
+        if(!result) {
+          /*
+           * Tidak ada barcode yang terlihat.
+           * Setelah beberapa frame kosong, barcode boleh discan lagi.
+           */
+          if(waitingForRelease && !releaseTimer){
+            releaseTimer = setTimeout(()=>{
+              waitingForRelease = false;
+              releaseTimer = null;
+              busy = false;
+              setStatus('🔎 SIAP — scan barang berikutnya');
+            }, RELEASE_MS);
+          }
+          return;
+        }
 
         const value = String(result.getText() || '').trim();
         if(!value) return;
 
+        /* Barcode masih terlihat? Jangan bunyi/kirim ulang. */
+        if(waitingForRelease && value === lastCode){
+          if(releaseTimer){
+            clearTimeout(releaseTimer);
+            releaseTimer = null;
+          }
+          return;
+        }
+
         const now = Date.now();
-        if(value === lastCode && now - lastTime < 1200) return;
+
+        /* Jeda minimum seperti scanner kasir minimarket. */
+        if(now - lastTime < SCAN_COOLDOWN_MS) return;
+
+        /* Proteksi tambahan untuk barcode yang sama. */
+        if(value === lastCode && now - lastTime < SAME_BARCODE_BLOCK_MS){
+          return;
+        }
+
+        if(busy) return;
 
         lastCode = value;
         lastTime = now;
         busy = true;
+        waitingForRelease = true;
 
         document.getElementById('lastCode').textContent = value;
-        setStatus('✅ Barcode terbaca — mengirim ke POS...');
+        setStatus('🔔 TERBACA — siap barang berikutnya...');
+
+        /* Satu bunyi + getar untuk satu barang. */
         beep();
         if(navigator.vibrate){
-          try{navigator.vibrate(80)}catch(e){}
+          try{ navigator.vibrate(70); }catch(e){}
         }
 
         sendBarcode(value);
 
         /*
-         * Jika opener memberi konfirmasi, scanner tetap hidup.
-         * Kalau tidak ada konfirmasi, tetap bisa scan lagi setelah 1 detik.
+         * Jangan menutup kamera.
+         * Kasir cukup geser barang berikutnya.
          */
-        setTimeout(()=>{busy=false; setStatus('🔎 SIAP — scan produk berikutnya')},1000);
+        setTimeout(()=>{
+          busy = false;
+          setStatus('🔎 Arahkan barcode barang berikutnya');
+        }, SCAN_COOLDOWN_MS);
       }
     );
 
