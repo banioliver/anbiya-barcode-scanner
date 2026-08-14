@@ -2,536 +2,246 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>ANBIYA Barcode Scanner</title>
-
 <style>
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: #111;
-  color: white;
-  font-family: Arial, sans-serif;
-}
-
-.app {
-  max-width: 600px;
-  margin: auto;
-  padding: 14px;
-  min-height: 100vh;
-}
-
-h2 {
-  text-align: center;
-  margin: 8px 0 4px;
-}
-
-.sub {
-  text-align: center;
-  color: #aaa;
-  font-size: 13px;
-  margin-bottom: 12px;
-}
-
-.scanner {
-  position: relative;
-  background: black;
-  border-radius: 16px;
-  overflow: hidden;
-}
-
-video {
-  width: 100%;
-  height: 430px;
-  display: block;
-  object-fit: cover;
-  background: black;
-}
-
-.frame {
-  position: absolute;
-  left: 10%;
-  right: 10%;
-  top: 35%;
-  height: 30%;
-  border: 3px solid #00ff66;
-  border-radius: 12px;
-  pointer-events: none;
-}
-
-.line {
-  position: absolute;
-  left: 11%;
-  right: 11%;
-  top: 50%;
-  height: 2px;
-  background: #00ff66;
-  box-shadow: 0 0 10px #00ff66;
-  animation: scan 1.4s linear infinite;
-  pointer-events: none;
-}
-
-@keyframes scan {
-
-  0% {
-    top: 35%;
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:#080808;
+    color:#fff;
+    font-family:Arial,Helvetica,sans-serif;
+    display:flex;
+    justify-content:center;
   }
-
-  50% {
-    top: 65%;
+  .app{width:min(100%,520px);padding:14px}
+  h1{font-size:20px;margin:8px 0 4px;text-align:center}
+  .sub{text-align:center;color:#aaa;font-size:13px;margin-bottom:12px}
+  .viewer{
+    position:relative;
+    background:#000;
+    border:2px solid #333;
+    border-radius:14px;
+    overflow:hidden;
+    aspect-ratio:3/4;
   }
-
-  100% {
-    top: 35%;
+  video{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
   }
-
-}
-
-.status {
-  margin: 12px 0;
-  padding: 12px;
-  border-radius: 10px;
-  background: #222;
-  text-align: center;
-}
-
-.result {
-  background: #1d1d1d;
-  padding: 14px;
-  border-radius: 10px;
-  text-align: center;
-  word-break: break-all;
-}
-
-.code {
-  font-size: 24px;
-  font-weight: bold;
-  margin-top: 6px;
-}
-
-button {
-  width: 100%;
-  border: none;
-  border-radius: 10px;
-  padding: 14px;
-  margin-top: 10px;
-  font-size: 16px;
-  font-weight: bold;
-}
-
-#start {
-  background: #00d95f;
-  color: #07130b;
-}
-
-#stop {
-  background: #333;
-  color: white;
-}
-
-.hint {
-  text-align: center;
-  color: #aaa;
-  font-size: 12px;
-  line-height: 1.5;
-  margin-top: 12px;
-}
-
+  .frame{
+    position:absolute;
+    left:7%;
+    right:7%;
+    top:37%;
+    height:22%;
+    border:2px solid #22c55e;
+    border-radius:8px;
+    pointer-events:none;
+    box-shadow:0 0 0 9999px rgba(0,0,0,.12);
+  }
+  .laser{
+    position:absolute;
+    left:2%;
+    right:2%;
+    top:50%;
+    height:2px;
+    background:#ef4444;
+    box-shadow:0 0 8px #ef4444;
+  }
+  .status{
+    margin-top:12px;
+    min-height:44px;
+    padding:12px;
+    border-radius:10px;
+    background:#171717;
+    text-align:center;
+    font-size:14px;
+  }
+  button{
+    width:100%;
+    margin-top:10px;
+    border:0;
+    border-radius:10px;
+    padding:13px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .green{background:#16a34a;color:#fff}
+  .gray{background:#333;color:#fff}
+  .code{
+    margin-top:10px;
+    text-align:center;
+    font-size:22px;
+    font-weight:700;
+    word-break:break-all;
+  }
+  .hint{text-align:center;color:#999;font-size:12px;margin-top:10px;line-height:1.5}
 </style>
-
 </head>
-
 <body>
-
 <div class="app">
+  <h1>📷 ANBIYA BARCODE SCANNER</h1>
+  <div class="sub">Live scanner untuk POS ANBIYA</div>
 
-<h2>📷 ANBIYA BARCODE SCANNER</h2>
+  <div class="viewer">
+    <video id="video" playsinline muted autoplay></video>
+    <div class="frame"><div class="laser"></div></div>
+  </div>
 
-<div class="sub">
-Live scan • otomatis • tanpa tombol foto
+  <div id="status" class="status">Memulai kamera...</div>
+  <div id="lastCode" class="code"></div>
+
+  <button class="green" onclick="startScanner()">🔄 MULAI / ULANG SCAN</button>
+  <button class="gray" onclick="closeScanner()">✕ TUTUP SCANNER</button>
+
+  <div class="hint">
+    Izinkan akses kamera jika diminta.<br>
+    Kamera belakang diprioritaskan. Arahkan barcode ke garis merah.
+  </div>
 </div>
 
-<div class="scanner">
-
-<video
-id="video"
-autoplay
-muted
-playsinline>
-</video>
-
-<div class="frame"></div>
-
-<div class="line"></div>
-
-</div>
-
-<div id="status" class="status">
-Kamera akan aktif otomatis saat scanner dibuka.
-</div>
-
-<div class="result">
-
-Hasil scan:
-
-<div id="code" class="code">
-—
-</div>
-
-</div>
-
-<button id="start">
-📷 MULAI SCAN
-</button>
-
-<button id="stop">
-⏹ STOP
-</button>
-
-<div class="hint">
-
-Izinkan kamera Chrome.
-<br>
-
-Arahkan barcode ke kotak hijau.
-
-</div>
-
-</div>
-
-
-<script type="module">
-
-import {
-  BrowserMultiFormatReader
-} from "https://esm.sh/@zxing/browser@0.2.1";
-
-
-const video =
-  document.getElementById("video");
-
-const statusEl =
-  document.getElementById("status");
-
-const codeEl =
-  document.getElementById("code");
-
-
-let reader = null;
-
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script>
+let codeReader = null;
 let controls = null;
-
+let lastCode = '';
+let lastTime = 0;
 let busy = false;
 
+const POS_ORIGIN = 'https://banioliver.github.io';
 
-function status(text) {
-
-  statusEl.textContent = text;
-
+function setStatus(msg){
+  document.getElementById('status').textContent = msg;
 }
 
-
-/* =========================
-   KIRIM BARCODE KE POS
-========================= */
-
-function sendToPOS(code) {
-  try {
-    if (window.opener && !window.opener.closed) {
-      window.opener.postMessage(
-        {
-          type: "ANBIYA_BARCODE",
-          barcode: String(code).trim()
-        },
-        "*"
-      );
-      return true;
-    }
-  } catch (e) {
-    console.log("Gagal kirim ke POS:", e);
-  }
-  return false;
+function beep(){
+  try{
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    const ctx = new AC();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = 1800;
+    osc.type = 'square';
+    gain.gain.value = 0.05;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.08);
+    setTimeout(()=>{try{ctx.close()}catch(e){}},150);
+  }catch(e){}
 }
 
-
-/* =========================
-   START SCANNER
-========================= */
-
-async function startScanner() {
-
-  if (busy) {
-
+function sendBarcode(value){
+  if(!window.opener || window.opener.closed){
+    setStatus('⚠️ POS utama tidak ditemukan. Buka scanner dari tombol SCAN di POS.');
     return;
-
   }
 
-  busy = true;
-
-  codeEl.textContent = "—";
-
-  status(
-    "Meminta izin kamera..."
-  );
-
-
-  try {
-
-    if (
-      !navigator.mediaDevices ||
-      !navigator.mediaDevices.getUserMedia
-    ) {
-
-      throw new Error(
-        "Browser tidak mendukung kamera."
-      );
-
-    }
-
-
-    /* Buat scanner */
-
-    reader =
-      new BrowserMultiFormatReader();
-
-
-    status(
-      "Mencari kamera belakang..."
+  try{
+    window.opener.postMessage(
+      {type:'ANBIYA_BARCODE', barcode:value},
+      '*'
     );
-
-
-    /* Cari kamera */
-
-    const devices =
-      await BrowserMultiFormatReader
-        .listVideoInputDevices();
-
-
-    if (
-      !devices ||
-      devices.length === 0
-    ) {
-
-      throw new Error(
-        "Kamera HP tidak ditemukan."
-      );
-
-    }
-
-
-    console.log(
-      "Daftar kamera:",
-      devices
-    );
-
-
-    /* Pilih kamera belakang */
-
-    let selectedDevice =
-      devices[devices.length - 1];
-
-
-    const backCamera =
-      devices.find(
-        device =>
-          /back|rear|environment|belakang/i
-            .test(device.label)
-      );
-
-
-    if (backCamera) {
-
-      selectedDevice =
-        backCamera;
-
-    }
-
-
-    status(
-      "Kamera aktif — arahkan barcode ke kotak hijau."
-    );
-
-
-    /* Mulai scan */
-
-    controls =
-      await reader.decodeFromVideoDevice(
-        selectedDevice.deviceId,
-        video,
-        (result, error) => {
-
-          if (!result) {
-
-            return;
-
-          }
-
-
-          const code =
-            result.getText();
-
-
-          if (!code) {
-
-            return;
-
-          }
-
-
-          console.log(
-            "BARCODE:",
-            code
-          );
-
-
-          codeEl.textContent =
-            code;
-
-
-          status(
-            "✅ Barcode berhasil terbaca!"
-          );
-
-
-          const sent = sendToPOS(code);
-
-          /* Stop setelah berhasil lalu kembali ke POS */
-          setTimeout(() => {
-            stopScanner();
-            if (sent && window.opener && !window.opener.closed) {
-              try { window.opener.focus(); } catch (e) {}
-              try { window.close(); } catch (e) {}
-            }
-          }, 450);
-
-
-        }
-      );
-
-
-  } catch (error) {
-
-    console.error(
-      "SCANNER ERROR:",
-      error
-    );
-
-
-    status(
-      "❌ Kamera gagal dibuka: " +
-      (
-        error.message ||
-        error
-      )
-    );
-
-
-    busy = false;
-
+  }catch(e){
+    setStatus('Gagal mengirim barcode ke POS.');
   }
-
 }
 
-
-/* =========================
-   STOP
-========================= */
-
-function stopScanner() {
-
-  try {
-
-    if (controls) {
-
-      controls.stop();
-
-    }
-
-  } catch (e) {}
-
-
-  controls = null;
-
-
-  try {
-
-    if (reader) {
-
-      reader.reset();
-
-    }
-
-  } catch (e) {}
-
-
-  try {
-
-    if (video.srcObject) {
-
-      video.srcObject
-        .getTracks()
-        .forEach(
-          track => track.stop()
-        );
-
-      video.srcObject = null;
-
-    }
-
-  } catch (e) {}
-
-
+window.addEventListener('message', function(event){
+  if(event.origin !== POS_ORIGIN) return;
+  if(!event.data || event.data.type !== 'ANBIYA_BARCODE_RECEIVED') return;
   busy = false;
-
-}
-
-
-/* =========================
-   BUTTON
-========================= */
-
-document
-  .getElementById("start")
-  .addEventListener(
-    "click",
-    startScanner
-  );
-
-
-document
-  .getElementById("stop")
-  .addEventListener(
-    "click",
-    () => {
-
-      stopScanner();
-
-      status(
-        "Scanner dihentikan."
-      );
-
-    }
-  );
-
-
-/* Auto-start ketika dibuka dari tombol SCAN di POS. */
-window.addEventListener("DOMContentLoaded", () => {
-  setTimeout(() => {
-    startScanner();
-  }, 250);
+  setStatus('🔎 SIAP — scan produk berikutnya');
 });
 
-window.addEventListener(
-  "pagehide",
-  stopScanner
-);
+async function startScanner(){
+  try{
+    if(controls){
+      try{controls.stop()}catch(e){}
+      controls = null;
+    }
 
+    if(!codeReader){
+      codeReader = new ZXing.BrowserMultiFormatReader();
+    }
+
+    busy = false;
+    setStatus('📷 Meminta izin kamera...');
+
+    /*
+     * deviceId kosong + constraints environment:
+     * ZXing akan mencoba kamera belakang pada HP.
+     */
+    controls = await codeReader.decodeFromConstraints(
+      {
+        audio:false,
+        video:{
+          facingMode:{ideal:'environment'},
+          width:{ideal:1280},
+          height:{ideal:720}
+        }
+      },
+      document.getElementById('video'),
+      (result, err) => {
+        if(!result || busy) return;
+
+        const value = String(result.getText() || '').trim();
+        if(!value) return;
+
+        const now = Date.now();
+        if(value === lastCode && now - lastTime < 1200) return;
+
+        lastCode = value;
+        lastTime = now;
+        busy = true;
+
+        document.getElementById('lastCode').textContent = value;
+        setStatus('✅ Barcode terbaca — mengirim ke POS...');
+        beep();
+        if(navigator.vibrate){
+          try{navigator.vibrate(80)}catch(e){}
+        }
+
+        sendBarcode(value);
+
+        /*
+         * Jika opener memberi konfirmasi, scanner tetap hidup.
+         * Kalau tidak ada konfirmasi, tetap bisa scan lagi setelah 1 detik.
+         */
+        setTimeout(()=>{busy=false; setStatus('🔎 SIAP — scan produk berikutnya')},1000);
+      }
+    );
+
+    setStatus('🔎 SCAN OTOMATIS — arahkan barcode ke garis merah');
+  }catch(error){
+    console.error(error);
+    setStatus(
+      '❌ Kamera tidak bisa dibuka. Pastikan Chrome/HTTPS dan izin kamera sudah diizinkan.'
+    );
+  }
+}
+
+function closeScanner(){
+  try{
+    if(controls){
+      controls.stop();
+      controls = null;
+    }
+  }catch(e){}
+  try{
+    if(codeReader) codeReader.reset();
+  }catch(e){}
+  try{window.close()}catch(e){}
+}
+
+window.addEventListener('load', ()=>{
+  startScanner();
+});
 </script>
-
 </body>
 </html>
