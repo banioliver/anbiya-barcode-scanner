@@ -153,7 +153,7 @@ button {
 <h2>📷 ANBIYA BARCODE SCANNER</h2>
 
 <div class="sub">
-Live scan • kamera belakang • otomatis • tanpa tombol foto
+Live scan • otomatis • tanpa tombol foto
 </div>
 
 <div class="scanner">
@@ -172,7 +172,7 @@ playsinline>
 </div>
 
 <div id="status" class="status">
-Kamera akan aktif otomatis. Izinkan akses kamera jika diminta.
+Kamera akan aktif otomatis saat scanner dibuka.
 </div>
 
 <div class="result">
@@ -241,40 +241,21 @@ function status(text) {
 ========================= */
 
 function sendToPOS(code) {
-
   try {
-
     if (window.opener && !window.opener.closed) {
-
       window.opener.postMessage(
         {
           type: "ANBIYA_BARCODE",
-          barcode: String(code || "").trim()
+          barcode: String(code).trim()
         },
         "*"
       );
-
-      status("✅ Barcode dikirim ke POS.");
-
-      // Beri waktu POS menerima pesan sebelum menutup window scanner.
-      setTimeout(() => {
-        try { window.close(); } catch (e) {}
-      }, 350);
-
       return true;
     }
-
-    status("⚠️ Scanner tidak menemukan halaman POS yang membuka scanner.");
-    return false;
-
   } catch (e) {
-
-    console.log(e);
-    status("❌ Gagal mengirim barcode ke POS.");
-    return false;
-
+    console.log("Gagal kirim ke POS:", e);
   }
-
+  return false;
 }
 
 
@@ -417,16 +398,16 @@ async function startScanner() {
           );
 
 
-          sendToPOS(code);
+          const sent = sendToPOS(code);
 
-
-          /* Stop setelah berhasil */
-
+          /* Stop setelah berhasil lalu kembali ke POS */
           setTimeout(() => {
-
             stopScanner();
-
-          }, 500);
+            if (sent && window.opener && !window.opener.closed) {
+              try { window.opener.focus(); } catch (e) {}
+              try { window.close(); } catch (e) {}
+            }
+          }, 450);
 
 
         }
@@ -521,13 +502,6 @@ document
     startScanner
   );
 
-// Saat dibuka dari tombol SCAN di POS, langsung mulai kamera.
-window.addEventListener("load", () => {
-  setTimeout(() => {
-    startScanner();
-  }, 250);
-});
-
 
 document
   .getElementById("stop")
@@ -544,6 +518,13 @@ document
     }
   );
 
+
+/* Auto-start ketika dibuka dari tombol SCAN di POS. */
+window.addEventListener("DOMContentLoaded", () => {
+  setTimeout(() => {
+    startScanner();
+  }, 250);
+});
 
 window.addEventListener(
   "pagehide",
